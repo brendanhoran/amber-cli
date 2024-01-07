@@ -6,9 +6,12 @@ use chrono::NaiveDate;
 use csv::WriterBuilder;
 use std::process;
 
+use tracing::info;
+
 use rest_client::{PriceData, RenewablesData, RestClient, SiteDetails, UsageData};
 
 /// Function to get and return only the users Site ID.
+#[tracing::instrument(level = "debug", skip(auth_token))]
 pub async fn get_user_site_id(base_url: String, auth_token: String) -> Result<String> {
     let user_site_data = get_site_data(base_url, auth_token).await?;
     let user_site_id = user_site_data[0].id.clone();
@@ -16,6 +19,7 @@ pub async fn get_user_site_id(base_url: String, auth_token: String) -> Result<St
 }
 
 /// Function to get the Site data
+#[tracing::instrument(level = "debug", skip(auth_token))]
 pub async fn get_site_data(base_url: String, auth_token: String) -> Result<Vec<SiteDetails>> {
     let sites_url = format!("{}/sites", base_url);
     let mut user_site_details = RestClient::new_client(sites_url, auth_token.clone());
@@ -34,6 +38,7 @@ pub async fn get_site_data(base_url: String, auth_token: String) -> Result<Vec<S
 // https://api.amber.com.au/v1/sites/SITE_ID/prices/current?previous=1&resolution=30'
 
 /// Function to get a window of prices. Based the users input.
+#[tracing::instrument(level = "debug", skip(auth_token))]
 pub async fn get_prices(
     base_url: String,
     auth_token: String,
@@ -54,6 +59,7 @@ pub async fn get_prices(
 // https://api.amber.com.au/v1/sites/SITE_ID/usage?startDate=2023-12-18&endDate=2023-12-19&resolution=30'
 
 /// Function to retrieve historical price data based on a date range supplied by the user.
+#[tracing::instrument(level = "debug", skip(auth_token))]
 pub async fn get_usage_by_date(
     base_url: String,
     auth_token: String,
@@ -76,6 +82,7 @@ pub async fn get_usage_by_date(
 // also supports "previous=" and "next=" , "/renewables/current?previous=1&resolution=30"
 
 /// Function to get percentage of renewables used in the grid for a given state and a given window.
+#[tracing::instrument(level = "debug", skip(auth_token))]
 pub async fn get_renewables(
     base_url: String,
     auth_token: String,
@@ -94,6 +101,7 @@ pub async fn get_renewables(
 /// Function to validate the user has supplied the date in the correct format and that
 /// the date is a valid calender date.
 /// Will exit the application of the date format is wrong or invalid.
+#[tracing::instrument(level = "debug")]
 pub async fn parse_date_naive(date: String) -> Result<String> {
     let naive_date = match NaiveDate::parse_from_str(&date, "%Y-%m-%d") {
         Ok(date) => date,
@@ -112,6 +120,7 @@ pub async fn parse_date_naive(date: String) -> Result<String> {
 }
 
 /// CVS writer for historical data
+#[tracing::instrument(level = "debug")]
 pub async fn write_data_as_csv_to_file(file_name: String, data: Vec<UsageData>) -> Result<()> {
     // We must use the builder to disable auto header generation.
     // See: https://docs.rs/csv/latest/csv/struct.Writer.html#structs
@@ -120,7 +129,7 @@ pub async fn write_data_as_csv_to_file(file_name: String, data: Vec<UsageData>) 
         .has_headers(false)
         .from_path(file_name.clone())?;
 
-    println!("Writing to file: {}", file_name);
+    info!("Writing to file: {}", file_name);
 
     // Write headers for usage data
     writer.write_record([
@@ -143,13 +152,13 @@ pub async fn write_data_as_csv_to_file(file_name: String, data: Vec<UsageData>) 
         "descriptor",
     ])?;
 
-    println!("Writing dataset headers to file...");
+    info!("Writing dataset headers to file...");
 
-    println!("Startng to write records to file...");
+    info!("Startng to write records to file...");
     for data_point in data {
         writer.serialize(data_point)?;
         writer.flush()?;
     }
-    println!("Finished writing records to file");
+    info!("Finished writing records to file");
     Ok(())
 }
